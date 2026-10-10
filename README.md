@@ -35,22 +35,6 @@
 | 💛 **Донаты** | Приём поддержки через CloudTips (Т-Банк) |
 | ℹ️ **Команды** | `/start`, `/help`, `/about`, `/password`, `/donate`, `/feedback` |
 
----
-
-## 🖼️ Скриншоты
-
-<div align="center">
-
-![Проверка email](docs/screenshot-email.png)
-*Проверка email на утечки*
-
-![Проверка пароля](docs/screenshot-password.png)
-*Проверка пароля через Pwned Passwords*
-
-</div>
-
-> 💡 Замени ссылки на свои скриншоты. Загрузи их в папку `docs/` в репозитории.
-
 __________________
 
 ## 🔒 Безопасность
