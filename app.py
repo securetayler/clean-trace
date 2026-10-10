@@ -17,11 +17,30 @@ telegram_app = Application.builder().token(TOKEN).build()
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "Привет. Я CleanTrace.\n\n"
-        "Что я умею:\n"
-        "• Проверю email на утечки — просто отправь его\n"
-        "• Проверю пароль на утечки — команда /password\n\n"
-        "Начни с email."
+        "🛡 *CleanTrace* — твой цифровой щит.\n\n"
+        "Я проверяю, не утекли ли твои данные в открытый доступ.\n\n"
+        "📧 *Проверка email*\n"
+        "Просто отправь мне свой адрес — я скажу, в каких утечках он засветился.\n\n"
+        "🔑 *Проверка пароля*\n"
+        "Нажми /password и отправь пароль — проверю по базе Pwned Passwords.\n\n"
+        "📖 /help — подробная справка.\n\n"
+        "⚠️ _Твои данные никуда не сохраняются. Только хеш._",
+        parse_mode="Markdown"
+    )
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "📖 *Как пользоваться CleanTrace*\n\n"
+        "1️⃣ *Проверка email*\n"
+        "Отправь боту свой email — получишь список утечек, где он найден.\n\n"
+        "2️⃣ *Проверка пароля*\n"
+        "Команда /password → отправь пароль → получишь количество утечек.\n\n"
+        "3️⃣ *Команды*\n"
+        "/start — начало работы\n"
+        "/password — проверка пароля\n"
+        "/help — эта справка\n\n"
+        "🔒 _Все проверки анонимны. Пароли не передаются — только хеш._",
+        parse_mode="Markdown"
     )
 
 async def password_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -125,6 +144,7 @@ async def check_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"Ошибка при проверке: {str(e)}")
 
 telegram_app.add_handler(CommandHandler("start", start))
+telegram_app.add_handler(CommandHandler("help", help_command))
 telegram_app.add_handler(CommandHandler("password", password_command))
 telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, check_email))
 
