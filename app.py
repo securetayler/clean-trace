@@ -37,14 +37,14 @@ async def check_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
             timeout=10
         )
 
+        # 200 — email найден в утечках
         if response.status_code == 200:
             data = response.json()
             breaches = data.get("breaches", [])
 
             if not breaches:
                 await update.message.reply_text(
-                    f"✅ {email}\n\n"
-                    "Утечек не найдено. Твой email чист."
+                    f"✅ {email}\n\nУтечек не найдено. Твой email чист."
                 )
             else:
                 breach_list = "\n".join([f"• {b}" for b in breaches[:10]])
@@ -55,9 +55,18 @@ async def check_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f"{breach_list}\n\n"
                     "Рекомендация: смени пароль на этих сервисах и включи 2FA."
                 )
+
+        # 404 — email НЕ найден в утечках (это ХОРОШО)
+        elif response.status_code == 404:
+            await update.message.reply_text(
+                f"✅ {email}\n\n"
+                "Утечек не найдено. Твой email чист."
+            )
+
+        # Всё остальное — реальная ошибка API
         else:
             await update.message.reply_text(
-                f"Не удалось проверить {email}. Попробуй позже."
+                f"Не удалось проверить {email}. Код ответа: {response.status_code}."
             )
 
     except Exception as e:
