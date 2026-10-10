@@ -1,3 +1,4 @@
-flask
+fastapi
+uvicorn
 python-telegram-bot
 requests
