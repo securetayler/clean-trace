@@ -6,10 +6,8 @@ from fastapi import FastAPI, Request, Response
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
-# Логирование
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-# Токен
 TOKEN = os.environ.get("TELEGRAM_TOKEN")
 if not TOKEN:
     raise ValueError("Нет токена! Проверь переменные окружения на Render.")
@@ -26,55 +24,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Начни с email."
     )
 
-async def check_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    email = update.message.text.strip()
-    if "@" not in email:
-        await update.message.reply_text("Это не похоже на email. Попробуй ещё раз.")
-        return
-
-    await update.message.reply_text(f"Проверяю {email}...")
-
-    try:
-        response = requests.get(
-            f"https://xposedornot.com/api/check-email/{email}",
-            timeout=10
-        )
-
-        if response.status_code == 200:
-            data = response.json()
-            breaches = data.get("breaches", [])
-
-            if not breaches:
-                await update.message.reply_text(
-                    f"✅ {email}\n\nУтечек не найдено. Твой email чист."
-                )
-            else:
-                breach_list = "\n".join([f"• {b}" for b in breaches[:10]])
-                total = len(breaches)
-                await update.message.reply_text(
-                    f"⚠️ {email}\n\n"
-                    f"Найдено утечек: {total}\n\n"
-                    f"{breach_list}\n\n"
-                    "Рекомендация: смени пароль на этих сервисах и включи 2FA."
-                )
-
-        elif response.status_code == 404:
-            await update.message.reply_text(
-                f"✅ {email}\n\n"
-                "Утечек не найдено. Твой email чист."
-            )
-
-        else:
-            await update.message.reply_text(
-                f"Не удалось проверить {email}. Код ответа: {response.status_code}."
-            )
-
-    except Exception as e:
-        await update.message.reply_text(
-            f"Ошибка при проверке: {str(e)}"
-        )
-
 async def password_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["waiting_password"] = True
     await update.message.reply_text(
         "Отправь пароль. Я проверю, светился ли он в утечках.\n\n"
         "⚠️ Сам пароль никуда не отправляется — только его хеш."
@@ -121,6 +72,53 @@ async def check_password(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(
                 "✅ Этот пароль в утечках не найден.\n\n"
                 "Но помни: даже чистый пароль должен быть длинным (12+ символов)."
+            )
+
+    except Exception as e:
+        await update.message.reply_text(f"Ошибка при проверке: {str(e)}")
+
+async def check_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if context.user_data.get("waiting_password"):
+        context.user_data["waiting_password"] = False
+        await check_password(update, context)
+        return
+
+    email = update.message.text.strip()
+    if "@" not in email:
+        await update.message.reply_text("Это не похоже на email. Попробуй ещё раз.")
+        return
+
+    await update.message.reply_text(f"Проверяю {email}...")
+
+    try:
+        response = requests.get(
+            f"https://xposedornot.com/api/check-email/{email}",
+            timeout=10
+        )
+
+        if response.status_code == 200:
+            data = response.json()
+            breaches = data.get("breaches", [])
+            if not breaches:
+                await update.message.reply_text(
+                    f"✅ {email}\n\nУтечек не найдено. Твой email чист."
+                )
+            else:
+                breach_list = "\n".join([f"• {b}" for b in breaches[:10]])
+                total = len(breaches)
+                await update.message.reply_text(
+                    f"⚠️ {email}\n\n"
+                    f"Найдено утечек: {total}\n\n"
+                    f"{breach_list}\n\n"
+                    "Рекомендация: смени пароль на этих сервисах и включи 2FA."
+                )
+        elif response.status_code == 404:
+            await update.message.reply_text(
+                f"✅ {email}\n\nУтечек не найдено. Твой email чист."
+            )
+        else:
+            await update.message.reply_text(
+                f"Не удалось проверить {email}. Код ответа: {response.status_code}."
             )
 
     except Exception as e:
