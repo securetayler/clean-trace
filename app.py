@@ -1,5 +1,6 @@
 import os
 import logging
+import hashlib
 import requests
 from fastapi import FastAPI, Request, Response
 from telegram import Update
@@ -18,9 +19,11 @@ telegram_app = Application.builder().token(TOKEN).build()
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "Привет. Я CleanTrace.\n"
-        "Проверю твой email на утечки.\n\n"
-        "Просто отправь мне свой email."
+        "Привет. Я CleanTrace.\n\n"
+        "Что я умею:\n"
+        "• Проверю email на утечки — просто отправь его\n"
+        "• Проверю пароль на утечки — команда /password\n\n"
+        "Начни с email."
     )
 
 async def check_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -37,7 +40,6 @@ async def check_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
             timeout=10
         )
 
-        # 200 — email найден в утечках
         if response.status_code == 200:
             data = response.json()
             breaches = data.get("breaches", [])
@@ -56,14 +58,12 @@ async def check_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     "Рекомендация: смени пароль на этих сервисах и включи 2FA."
                 )
 
-        # 404 — email НЕ найден в утечках (это ХОРОШО)
         elif response.status_code == 404:
             await update.message.reply_text(
                 f"✅ {email}\n\n"
                 "Утечек не найдено. Твой email чист."
             )
 
-        # Всё остальное — реальная ошибка API
         else:
             await update.message.reply_text(
                 f"Не удалось проверить {email}. Код ответа: {response.status_code}."
@@ -74,7 +74,60 @@ async def check_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"Ошибка при проверке: {str(e)}"
         )
 
+async def password_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "Отправь пароль. Я проверю, светился ли он в утечках.\n\n"
+        "⚠️ Сам пароль никуда не отправляется — только его хеш."
+    )
+
+async def check_password(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    password = update.message.text.strip()
+    if len(password) < 3:
+        await update.message.reply_text("Слишком короткий пароль. Попробуй другой.")
+        return
+
+    await update.message.reply_text("Проверяю пароль...")
+
+    try:
+        sha1 = hashlib.sha1(password.encode("utf-8")).hexdigest().upper()
+        prefix = sha1[:5]
+        suffix = sha1[5:]
+
+        response = requests.get(
+            f"https://api.pwnedpasswords.com/range/{prefix}",
+            timeout=10
+        )
+
+        if response.status_code != 200:
+            await update.message.reply_text(
+                f"Не удалось проверить. Код ответа: {response.status_code}."
+            )
+            return
+
+        hashes = response.text.splitlines()
+        found = None
+        for line in hashes:
+            parts = line.split(":")
+            if len(parts) == 2 and parts[0] == suffix:
+                found = int(parts[1])
+                break
+
+        if found:
+            await update.message.reply_text(
+                f"⚠️ Этот пароль найден в утечках {found} раз.\n\n"
+                "Смени его немедленно. Никогда не используй его снова."
+            )
+        else:
+            await update.message.reply_text(
+                "✅ Этот пароль в утечках не найден.\n\n"
+                "Но помни: даже чистый пароль должен быть длинным (12+ символов)."
+            )
+
+    except Exception as e:
+        await update.message.reply_text(f"Ошибка при проверке: {str(e)}")
+
 telegram_app.add_handler(CommandHandler("start", start))
+telegram_app.add_handler(CommandHandler("password", password_command))
 telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, check_email))
 
 @app.get("/")
