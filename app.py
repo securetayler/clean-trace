@@ -3,17 +3,21 @@ import logging
 import hashlib
 import requests
 from fastapi import FastAPI, Request, Response
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 TOKEN = os.environ.get("TELEGRAM_TOKEN")
+ADMIN_CHAT_ID = os.environ.get("ADMIN_CHAT_ID")
+
 if not TOKEN:
     raise ValueError("Нет токена! Проверь переменные окружения на Render.")
 
 app = FastAPI()
 telegram_app = Application.builder().token(TOKEN).build()
+
+REQUEST_COUNTER = {}
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -24,7 +28,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🔑 *Проверка пароля*\n"
         "/password → отправь пароль → получишь количество утечек.\n\n"
         "📖 /help — подробная справка.\n"
-        "ℹ️ /about — о боте и приватности.\n\n"
+        "ℹ️ /about — о боте и приватности.\n"
+        "💛 /donate — поддержать проект.\n\n"
         "━━━━━━━━━━━━━━━━━━\n"
         "🔒 *Дисклеймер о конфиденциальности*\n\n"
         "_Мы не собираем и не храним адреса электронной почты, логины и номера телефонов, введённые в форму запроса в боте._\n\n"
@@ -47,7 +52,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/start — начало работы\n"
         "/password — проверка пароля\n"
         "/help — эта справка\n"
-        "/about — о боте\n\n"
+        "/about — о боте\n"
+        "/donate — поддержать проект\n"
+        "/feedback — оставить отзыв\n\n"
         "🔒 _Все проверки анонимны. Пароли не передаются — только хеш._\n\n"
         "📦 github.com/secretayler/clean-trace",
         parse_mode="Markdown"
@@ -65,9 +72,33 @@ async def about_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "⚠️ *Дисклеймер*\n"
         "Данные об утечках получены из публичных источников и не верифицируются. "
         "Наличие или отсутствие информации не подтверждает и не опровергает факт утечки.\n\n"
+        "💛 *Поддержка*\n"
+        "Донаты принимаются через CloudTips — официальный сервис Т-Банка.\n"
+        "Команда: /donate\n\n"
         "📦 *Исходный код:*\n"
         "github.com/secretayler/clean-trace\n\n"
         "🛡 _Твои данные — твоё дело._",
+        parse_mode="Markdown"
+    )
+
+async def donate_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [
+        [InlineKeyboardButton("💛 Поддержать автора", url="https://pay.cloudtips.ru/p/d82a2608")],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text(
+        "🤍 *Поддержать CleanTrace*\n\n"
+        "Проект живёт на бесплатном сервере и развивается в свободное время. "
+        "Твоя поддержка помогает оплачивать хостинг и добавлять новые функции.\n\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        "🔒 *Безопасно ли платить?*\n\n"
+        "✅ Платежи проходят через *CloudTips* — официальный сервис *Т-Банка*.\n"
+        "✅ Ты увидишь знакомый интерфейс банка и логотип Т-Банка.\n"
+        "✅ Бот не запрашивает и не хранит твои платёжные данные.\n"
+        "✅ Деньги идут напрямую на счёт автора.\n"
+        "━━━━━━━━━━━━━━━━━━\n\n"
+        "Любая сумма — уже спасибо. Жми кнопку ниже 👇",
+        reply_markup=reply_markup,
         parse_mode="Markdown"
     )
 
@@ -125,6 +156,14 @@ async def check_password(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"Ошибка при проверке: {str(e)}")
 
 async def check_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if context.user_data.get("waiting_rating"):
+        await handle_rating(update, context)
+        return
+
+    if context.user_data.get("waiting_comment"):
+        await handle_comment(update, context)
+        return
+
     if context.user_data.get("waiting_password"):
         context.user_data["waiting_password"] = False
         await check_password(update, context)
@@ -168,12 +207,83 @@ async def check_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"Не удалось проверить {email}. Код ответа: {response.status_code}."
             )
 
+        await maybe_ask_rating(update, context)
+
     except Exception as e:
         await update.message.reply_text(f"Ошибка при проверке: {str(e)}")
+
+async def maybe_ask_rating(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    REQUEST_COUNTER[user_id] = REQUEST_COUNTER.get(user_id, 0) + 1
+
+    # Каждые 3 запроса — просим оценку
+    if REQUEST_COUNTER[user_id] % 3 == 0:
+        context.user_data["waiting_rating"] = True
+        await update.message.reply_text(
+            "🌟 *Оцени работу бота от 1 до 10.*\n\n"
+            "_Просто отправь число. Твоя оценка поможет сделать сервис лучше._",
+            parse_mode="Markdown"
+        )
+
+async def handle_rating(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text.strip()
+    if not text.isdigit() or not (1 <= int(text) <= 10):
+        await update.message.reply_text("Пожалуйста, отправь число от 1 до 10.")
+        return
+
+    rating = int(text)
+    context.user_data["waiting_rating"] = False
+    context.user_data["last_rating"] = rating
+    context.user_data["waiting_comment"] = True
+
+    await update.message.reply_text(
+        f"Спасибо! Оценка *{rating}/10* записана.\n\n"
+        "Хочешь добавить комментарий? Напиши его одним сообщением. "
+        "Или отправь /skip, чтобы пропустить.",
+        parse_mode="Markdown"
+    )
+
+async def handle_comment(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text.strip()
+    context.user_data["waiting_comment"] = False
+
+    if text == "/skip":
+        await update.message.reply_text("Понял. Спасибо за оценку! 🛡")
+    else:
+        await update.message.reply_text("Спасибо за отзыв! Он помогает делать бота лучше. 🛡")
+
+    rating = context.user_data.get("last_rating", "—")
+    user = update.effective_user
+
+    if ADMIN_CHAT_ID:
+        try:
+            await context.bot.send_message(
+                chat_id=int(ADMIN_CHAT_ID),
+                text=(
+                    f"📬 *Новый отзыв*\n\n"
+                    f"👤 Пользователь: @{user.username or 'без username'}\n"
+                    f"🆔 ID: `{user.id}`\n"
+                    f"⭐ Оценка: *{rating}/10*\n"
+                    f"💬 Комментарий: {text if text != '/skip' else '_без комментария_'}"
+                ),
+                parse_mode="Markdown"
+            )
+        except Exception as e:
+            logging.error(f"Не удалось отправить отзыв админу: {e}")
+
+async def feedback_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["waiting_rating"] = True
+    await update.message.reply_text(
+        "🌟 *Оцени работу бота от 1 до 10.*\n\n"
+        "_Просто отправь число._",
+        parse_mode="Markdown"
+    )
 
 telegram_app.add_handler(CommandHandler("start", start))
 telegram_app.add_handler(CommandHandler("help", help_command))
 telegram_app.add_handler(CommandHandler("about", about_command))
+telegram_app.add_handler(CommandHandler("donate", donate_command))
+telegram_app.add_handler(CommandHandler("feedback", feedback_command))
 telegram_app.add_handler(CommandHandler("password", password_command))
 telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, check_email))
 
