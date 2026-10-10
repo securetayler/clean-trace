@@ -87,7 +87,7 @@ async def donate_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
-        "🤍 *Поддержать CleanTrace*\n\n"
+        "💛 *Поддержать CleanTrace*\n\n"
         "Проект живёт на бесплатном сервере и развивается в свободное время. "
         "Твоя поддержка помогает оплачивать хостинг и добавлять новые функции.\n\n"
         "━━━━━━━━━━━━━━━━━━\n"
@@ -216,7 +216,6 @@ async def maybe_ask_rating(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     REQUEST_COUNTER[user_id] = REQUEST_COUNTER.get(user_id, 0) + 1
 
-    # Каждые 3 запроса — просим оценку
     if REQUEST_COUNTER[user_id] % 3 == 0:
         context.user_data["waiting_rating"] = True
         await update.message.reply_text(
@@ -247,11 +246,19 @@ async def handle_comment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     context.user_data["waiting_comment"] = False
 
-    if text == "/skip":
-        await update.message.reply_text("Понял. Спасибо за оценку! 🛡")
-    else:
-        await update.message.reply_text("Спасибо за отзыв! Он помогает делать бота лучше. 🛡")
+    await update.message.reply_text("Спасибо за отзыв! Он помогает делать бота лучше. 🛡")
 
+    await send_feedback_to_admin(update, context, text)
+
+async def skip_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if context.user_data.get("waiting_comment"):
+        context.user_data["waiting_comment"] = False
+        await update.message.reply_text("Понял. Спасибо за оценку! 🛡")
+        await send_feedback_to_admin(update, context, "_без комментария_")
+    else:
+        await update.message.reply_text("Сейчас нечего пропускать.")
+
+async def send_feedback_to_admin(update: Update, context: ContextTypes.DEFAULT_TYPE, comment: str):
     rating = context.user_data.get("last_rating", "—")
     user = update.effective_user
 
@@ -264,7 +271,7 @@ async def handle_comment(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f"👤 Пользователь: @{user.username or 'без username'}\n"
                     f"🆔 ID: `{user.id}`\n"
                     f"⭐ Оценка: *{rating}/10*\n"
-                    f"💬 Комментарий: {text if text != '/skip' else '_без комментария_'}"
+                    f"💬 Комментарий: {comment}"
                 ),
                 parse_mode="Markdown"
             )
@@ -284,6 +291,7 @@ telegram_app.add_handler(CommandHandler("help", help_command))
 telegram_app.add_handler(CommandHandler("about", about_command))
 telegram_app.add_handler(CommandHandler("donate", donate_command))
 telegram_app.add_handler(CommandHandler("feedback", feedback_command))
+telegram_app.add_handler(CommandHandler("skip", skip_command))
 telegram_app.add_handler(CommandHandler("password", password_command))
 telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, check_email))
 
