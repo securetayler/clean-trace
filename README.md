@@ -39,13 +39,13 @@
 
 ## 🖼️ Скриншоты
 
-**<img width="1080" height="388" alt="screenshot-email png" src="https://github.com/user-attachments/assets/d5f87836-e9da-4976-a4c9-cdd8db58c4bc" />
-**
+<img width="1080" height="388" alt="screenshot-email png" src="https://github.com/user-attachments/assets/d5f87836-e9da-4976-a4c9-cdd8db58c4bc" />
+
 
 *Проверка email на утечки*
 
-**<img width="1080" height="863" alt="screenshot-password png" src="https://github.com/user-attachments/assets/182c5e42-2033-433e-8a63-b500518a654b" />
-**
+<img width="1080" height="863" alt="screenshot-password png" src="https://github.com/user-attachments/assets/182c5e42-2033-433e-8a63-b500518a654b" />
+
 
 *Проверка пароля через Pwned Passwords*
 
