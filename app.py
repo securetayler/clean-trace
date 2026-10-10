@@ -1,11 +1,17 @@
 import os
-import requests
-from flask import Flask, request
+import logging
+import threading
+from flask import Flask
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
-# Токен из переменных окружения
+# Логирование
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+
+# Токен
 TOKEN = os.environ.get("TELEGRAM_TOKEN")
+if not TOKEN:
+    raise ValueError("Нет токена! Проверь переменные окружения на Render.")
 
 # Flask для Render
 app = Flask(__name__)
@@ -26,12 +32,9 @@ async def check_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Это не похоже на email. Попробуй ещё раз.")
         return
 
-    # Проверка через HIBP (публичный API для теста)
-    # В реальности нужен ключ, но для демо используем заглушку
     await update.message.reply_text(f"Проверяю {email}...")
 
-    # Заглушка — здесь будет реальный запрос к HIBP
-    # Пока просто демонстрация работы
+    # Заглушка для теста
     await update.message.reply_text(
         f"Отчёт по {email}:\n\n"
         "Найдено утечек: 2\n"
@@ -47,12 +50,16 @@ telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, check_e
 def index():
     return "CleanTrace bot is running."
 
-@app.route(f"/{TOKEN}", methods=["POST"])
-def webhook():
-    update = Update.de_json(request.get_json(force=True), telegram_app.bot)
-    telegram_app.process_update(update)
-    return "ok"
+def run_bot():
+    # Запуск бота в фоне
+    telegram_app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":
+    # Бот в отдельном потоке
+    bot_thread = threading.Thread(target=run_bot)
+    bot_thread.daemon = True
+    bot_thread.start()
+
+    # Flask на порту Render
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
