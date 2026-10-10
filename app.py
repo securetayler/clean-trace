@@ -23,7 +23,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Отправь адрес — покажу, в каких утечках он засветился.\n\n"
         "🔑 *Проверка пароля*\n"
         "/password → отправь пароль → получишь количество утечек.\n\n"
-        "📖 /help — подробная справка.\n\n"
+        "📖 /help — подробная справка.\n"
+        "ℹ️ /about — о боте и приватности.\n\n"
         "━━━━━━━━━━━━━━━━━━\n"
         "🔒 *Дисклеймер о конфиденциальности*\n\n"
         "_Мы не собираем и не храним адреса электронной почты, логины и номера телефонов, введённые в форму запроса в боте._\n\n"
@@ -45,9 +46,28 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "3️⃣ *Команды*\n"
         "/start — начало работы\n"
         "/password — проверка пароля\n"
-        "/help — эта справка\n\n"
+        "/help — эта справка\n"
+        "/about — о боте\n\n"
         "🔒 _Все проверки анонимны. Пароли не передаются — только хеш._\n\n"
         "📦 github.com/secretayler/clean-trace",
+        parse_mode="Markdown"
+    )
+
+async def about_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "ℹ️ *О CleanTrace*\n\n"
+        "Инструмент для аудита собственного цифрового следа. "
+        "Проверяет email и пароли на наличие в публичных базах утечек.\n\n"
+        "🔒 *Приватность*\n"
+        "• Email не сохраняется — отправляется в открытый сервис XposedOrNot для проверки.\n"
+        "• Пароли передаются только в виде хеша (SHA-1, k-anonymity). Сам пароль никуда не уходит.\n"
+        "• Бот не ведёт логи пользователей и не хранит историю запросов.\n\n"
+        "⚠️ *Дисклеймер*\n"
+        "Данные об утечках получены из публичных источников и не верифицируются. "
+        "Наличие или отсутствие информации не подтверждает и не опровергает факт утечки.\n\n"
+        "📦 *Исходный код:*\n"
+        "github.com/secretayler/clean-trace\n\n"
+        "🛡 _Твои данные — твоё дело._",
         parse_mode="Markdown"
     )
 
@@ -153,6 +173,7 @@ async def check_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 telegram_app.add_handler(CommandHandler("start", start))
 telegram_app.add_handler(CommandHandler("help", help_command))
+telegram_app.add_handler(CommandHandler("about", about_command))
 telegram_app.add_handler(CommandHandler("password", password_command))
 telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, check_email))
 
